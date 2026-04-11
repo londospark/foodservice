@@ -4,3 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow.default-features = true
+anyhow.workspace = true
+sqlx = { workspace = true, features = ["postgres", "runtime-tokio", "uuid"], default-features = true }
+uuid.default-features = true
+uuid.workspace = true

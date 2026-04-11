@@ -21,3 +21,4 @@ axum = { default-features = false, version = "^0.8" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] , default-features = false }
 tokio-macros = { default-features = false, version = "^2" }
 uuid = { default-features = false, features = ["v7"], version = "^1.23.0" }
+sqlx = { default-features = false, features = ["postgres", "runtime-tokio"], version = "^0.8.6" }
