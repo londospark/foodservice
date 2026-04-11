@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-async-graphql = "7.2.1"
+anyhow = { workspace = true , default-features = true }
+async-graphql = { workspace = true , default-features = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] , default-features = true }
+tokio-macros = { workspace = true , default-features = true }
+

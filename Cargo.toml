@@ -2,3 +2,21 @@
 resolver = "3"
 members = ["crates/gateway", "services/gateway-svc"]
 
+[workspace.dependencies]
+
+gateway = { path = "crates/gateway" }
+
+# -- Error handling -- #
+anyhow = { default-features = false, version = "^1" }
+thiserror = "2"
+
+# -- GraphQL -- #
+async-graphql = { default-features = false, version = "^7.2.1" }
+async-graphql-axum = { default-features = false, version = "^7.2.1" }
+
+# -- Web framework -- #
+axum = { default-features = false, version = "^0.8" }
+
+# -- Async runtime -- #
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] , default-features = false }
+tokio-macros = { default-features = false, version = "^2" }

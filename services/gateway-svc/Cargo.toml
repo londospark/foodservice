@@ -4,3 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+gateway = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] , default-features = true }
+axum = { workspace = true , default-features = true }
+async-graphql = { workspace = true , default-features = true }
+async-graphql-axum = { workspace = true , default-features = true }
+anyhow = { workspace = true , default-features = true }
