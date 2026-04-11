@@ -2,6 +2,7 @@ use anyhow::{Ok, Result};
 use async_graphql::{Object, SimpleObject};
 
 pub struct Query;
+pub struct Mutation;
 
 #[derive(SimpleObject)]
 pub struct Food {
@@ -29,9 +30,16 @@ impl Query {
     }
 }
 
+#[Object]
+impl Mutation {
+    async fn add_food(&self, name: String, qty: i32) -> Result<Food> {
+        Ok(Food { name, qty })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::Query;
+    use crate::{Mutation, Query};
     use async_graphql::{EmptyMutation, EmptySubscription, Schema};
 
     #[tokio::test]
@@ -48,6 +56,27 @@ mod tests {
         assert_eq!(
             res.data.to_string(),
             "{listFood: [{name: \"Pizza\", qty: 10}, {name: \"Burger\", qty: 5}]}"
+        );
+    }
+
+    #[tokio::test]
+    async fn add_valid_food_returns_ok() {
+        let schema = Schema::new(Query, Mutation, EmptySubscription);
+        let res = schema
+            .execute(
+                r#"
+                mutation {
+                    addFood(name: "Sushi", qty: 20) {
+                        name
+                        qty
+                    }
+                }
+            "#,
+            )
+            .await;
+        assert_eq!(
+            res.data.to_string(),
+            "{addFood: {name: \"Sushi\", qty: 20}}"
         );
     }
 }

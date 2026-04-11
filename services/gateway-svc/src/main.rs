@@ -1,12 +1,12 @@
 use anyhow::*;
-use async_graphql::{EmptyMutation, EmptySubscription, Schema};
+use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::GraphQL;
 use axum::{
     Router,
     response::{Html, IntoResponse},
     routing::get,
 };
-use gateway::Query;
+use gateway::{Mutation, Query};
 
 fn playground(endpoint: impl AsRef<str> + std::fmt::Display) -> String {
     format!(
@@ -29,7 +29,7 @@ async fn graphiql_handler() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let schema = Schema::build(Query, EmptyMutation, EmptySubscription).finish();
+    let schema = Schema::build(Query, Mutation, EmptySubscription).finish();
     let app = Router::new().route(
         "/",
         get(graphiql_handler).post_service(GraphQL::new(schema)),
