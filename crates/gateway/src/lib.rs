@@ -1,13 +1,15 @@
 use anyhow::{Ok, Result};
 use async_graphql::{Object, SimpleObject};
+use uuid::Uuid;
 
 pub struct Query;
 pub struct Mutation;
 
 #[derive(SimpleObject)]
-pub struct Food {
+pub struct FoodItem {
+    id: Uuid,
     name: String,
-    qty: i32,
+    qty: usize,
 }
 
 #[Object]
@@ -16,13 +18,15 @@ impl Query {
         Ok(format!("ok"))
     }
 
-    async fn list_food(&self) -> Result<Vec<Food>> {
+    async fn list_food(&self) -> Result<Vec<FoodItem>> {
         Ok(vec![
-            Food {
+            FoodItem {
+                id: Uuid::now_v7(),
                 name: "Pizza".to_string(),
                 qty: 10,
             },
-            Food {
+            FoodItem {
+                id: Uuid::now_v7(),
                 name: "Burger".to_string(),
                 qty: 5,
             },
@@ -32,8 +36,24 @@ impl Query {
 
 #[Object]
 impl Mutation {
-    async fn add_food(&self, name: String, qty: i32) -> Result<Food> {
-        Ok(Food { name, qty })
+    async fn add_food(&self, name: String, qty: usize) -> Result<FoodItem> {
+        if qty <= 0 {
+            Err(anyhow::anyhow!("Quantity must be a positive integer"))
+        } else {
+            Ok(FoodItem {
+                id: Uuid::now_v7(),
+                name,
+                qty,
+            })
+        }
+    }
+
+    async fn delete_food(&self, id: Uuid) -> Result<FoodItem> {
+        Ok(FoodItem {
+            id,
+            name: "Pizza".to_string(),
+            qty: 10,
+        })
     }
 }
 
@@ -77,6 +97,66 @@ mod tests {
         assert_eq!(
             res.data.to_string(),
             "{addFood: {name: \"Sushi\", qty: 20}}"
+        );
+    }
+
+    #[tokio::test]
+    async fn add_food_with_negative_qty_returns_error() {
+        let schema = Schema::new(Query, Mutation, EmptySubscription);
+        let res = schema
+            .execute(
+                r#"
+                mutation {
+                    addFood(name: "Sushi", qty: -5) {
+                        name
+                        qty
+                    }
+                }
+            "#,
+            )
+            .await;
+        assert!(res.errors.len() > 0);
+    }
+
+    #[tokio::test]
+    async fn add_food_with_zero_qty_returns_error() {
+        let schema = Schema::new(Query, Mutation, EmptySubscription);
+        let res = schema
+            .execute(
+                r#"
+                mutation {
+                    addFood(name: "Sushi", qty: 0) {
+                        name
+                        qty
+                    }
+                }
+            "#,
+            )
+            .await;
+        assert!(res.errors.len() > 0);
+        assert_eq!(res.errors[0].message, "Quantity must be a positive integer");
+    }
+
+    #[tokio::test]
+    async fn deleting_food_item_returns_ok() {
+        // Implement a test for deleting a food item, assuming you have a delete_food mutation in your Mutation struct.
+        let schema = Schema::new(Query, Mutation, EmptySubscription);
+        let res = schema
+            .execute(
+                r#"
+                mutation {
+                    deleteFood(id: "00000000-0000-0000-0000-000000000001") {
+                        id
+                        name
+                        qty
+                    }
+                }
+            "#,
+            )
+            .await;
+        assert_eq!(
+            res.data.to_string(),
+            "{deleteFood: {id: \"00000000-0000-0000-0000-000000000001\", name: \"Pizza\", qty: 10}}"
         );
     }
 }
