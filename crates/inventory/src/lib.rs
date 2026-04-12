@@ -93,4 +93,28 @@ mod tests {
 
         Ok(())
     }
+
+    #[sqlx::test]
+    async fn list_of_food_items_can_be_retrieved(pool: PgPool) -> anyhow::Result<()> {
+        crate::add_food_item(&pool, "Pizza", 4).await?;
+        crate::add_food_item(&pool, "Sausages", 100).await?;
+
+        let rows = sqlx::query("SELECT name, quantity FROM food_items")
+            .fetch_all(&pool)
+            .await?;
+
+        assert_eq!(rows.len(), 2, "Expected two rows in the database");
+
+        let mut items = Vec::new();
+        for row in rows {
+            let name: String = row.try_get("name")?;
+            let quantity: i32 = row.try_get("quantity")?;
+            items.push((name, quantity));
+        }
+
+        assert!(items.contains(&("Pizza".to_string(), 4)));
+        assert!(items.contains(&("Sausages".to_string(), 100)));
+
+        Ok(())
+    }
 }
