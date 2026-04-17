@@ -4,7 +4,6 @@ use inventory::dto::AddFoodItem;
 use inventory::dto::FoodItem;
 use inventory::traits::InventoryService;
 use sqlx::PgPool;
-use uuid::Uuid;
 
 pub struct PostgresInventoryService<'a> {
     pool: &'a PgPool,
