@@ -230,7 +230,10 @@ mod tests {
         let list_res = schema.execute("{ listFood { name qty } }").await;
 
         assert!(
-            list_res.data.to_string().contains("{name: \"Milk\", qty: 2}"),
+            list_res
+                .data
+                .to_string()
+                .contains("{name: \"Milk\", qty: 2}"),
             "Newly added food should be visible from the listFood query"
         );
     }

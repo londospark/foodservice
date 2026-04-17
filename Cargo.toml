@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/gateway", "crates/inventory", "binaries/gateway-bin", "binaries/inventory-bin"]
+members = ["crates/gateway", "crates/inventory", "binaries/gateway_bin", "binaries/inventory_bin", "crates/inventory_svc"]
 
 [workspace.dependencies]
 

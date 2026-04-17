@@ -1,5 +1,5 @@
 [package]
-name = "gateway-bin"
+name = "gateway_bin"
 version = "0.1.0"
 edition = "2024"
 

@@ -717,7 +717,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gateway-bin"
+name = "gateway_bin"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1074,13 +1074,21 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "sqlx",
  "uuid",
 ]
 
 [[package]]
-name = "inventory-bin"
+name = "inventory_bin"
 version = "0.1.0"
+
+[[package]]
+name = "inventory_svc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "sqlx",
+ "uuid",
+]
 
 [[package]]
 name = "itoa"
