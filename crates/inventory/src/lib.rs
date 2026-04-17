@@ -1,4 +1,6 @@
 use sqlx::{PgPool, Row};
+pub mod dto;
+pub mod traits;
 pub async fn add_food_item(pool: &PgPool, name: &str, quantity: i32) -> anyhow::Result<()> {
     // TODO(londo): This validation should be done in the gateway and then the type system should be used to ensure that the service only receives valid data. For now, this is a quick way to prevent bad data from being written to the database.
     if name.trim().is_empty() {

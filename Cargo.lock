@@ -717,7 +717,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gateway-svc"
+name = "gateway-bin"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1073,12 +1073,13 @@ name = "inventory"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "sqlx",
  "uuid",
 ]
 
 [[package]]
-name = "inventory-svc"
+name = "inventory-bin"
 version = "0.1.0"
 
 [[package]]
