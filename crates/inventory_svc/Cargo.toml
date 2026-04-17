@@ -9,3 +9,5 @@ anyhow.workspace = true
 sqlx = { workspace = true, features = ["postgres", "runtime-tokio", "uuid"], default-features = true }
 uuid.default-features = true
 uuid.workspace = true
+inventory = { path = "../inventory" }
+async-trait.workspace = true

@@ -1,7 +1,29 @@
+use anyhow::Result;
+use async_trait::async_trait;
+use inventory::dto::AddFoodItem;
+use inventory::dto::FoodItem;
+use inventory::traits::InventoryService;
 use sqlx::PgPool;
 use sqlx::Row;
+use uuid::Uuid;
 
-pub async fn add_food_item(pool: &PgPool, name: &str, quantity: i32) -> anyhow::Result<()> {
+pub struct PostgresInventoryService {
+    pool: PgPool,
+}
+
+#[async_trait]
+impl InventoryService for PostgresInventoryService {
+    async fn add_food_item(&self, item: &AddFoodItem) -> Result<FoodItem> {
+        let id = add_food_item(&self.pool, &item.name, item.quantity).await?;
+        Ok(FoodItem {
+            id,
+            name: item.name.clone(),
+            quantity: item.quantity,
+        })
+    }
+}
+
+pub async fn add_food_item(pool: &PgPool, name: &str, quantity: i32) -> anyhow::Result<Uuid> {
     // TODO(londo): This validation should be done in the gateway and then the type system should be used to ensure that the service only receives valid data. For now, this is a quick way to prevent bad data from being written to the database.
     if name.trim().is_empty() {
         anyhow::bail!("Food item name cannot be blank");
@@ -17,23 +39,23 @@ pub async fn add_food_item(pool: &PgPool, name: &str, quantity: i32) -> anyhow::
         .bind(name)
         .fetch_optional(pool)
         .await?;
-    if let Some(row) = existing_item {
+
+    let result: (Uuid,) = if let Some(row) = existing_item {
         let existing_quantity: i32 = row.try_get("quantity")?;
         let new_quantity = existing_quantity + quantity;
-        sqlx::query("UPDATE food_items SET quantity = $1 WHERE name = $2")
+        sqlx::query_as("UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id")
             .bind(new_quantity)
             .bind(name)
-            .execute(pool)
-            .await?;
+            .fetch_one(pool)
+            .await?
     } else {
-        sqlx::query("INSERT INTO food_items (name, quantity) VALUES ($1, $2)")
+        sqlx::query_as("INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id")
             .bind(name)
             .bind(quantity)
-            .execute(pool)
-            .await?;
-    }
-
-    Ok(())
+            .fetch_one(pool)
+            .await?
+    };
+    Ok(result.0)
 }
 
 #[cfg(test)]
