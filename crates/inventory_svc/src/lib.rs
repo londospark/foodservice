@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use inventory::dto::AddFoodItem;
 use inventory::dto::FoodItem;
 use inventory::traits::InventoryService;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 
 pub struct PostgresInventoryService<'a> {
     pool: &'a PgPool,
@@ -25,29 +25,27 @@ impl InventoryService for PostgresInventoryService<'_> {
             anyhow::bail!("add_food_item should only accept stock being added to the house");
         }
 
-        let existing_item = sqlx::query!("SELECT quantity FROM food_items WHERE name = $1", name)
+        let existing_item = sqlx::query("SELECT quantity FROM food_items WHERE name = $1")
+            .bind(name)
             .fetch_optional(self.pool)
             .await?;
 
-        let result = if let Some(row) = existing_item {
-            let new_quantity = row.quantity + quantity;
-            sqlx::query_scalar!(
-                "UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id",
-                new_quantity,
-                name
-            )
-            .fetch_one(self.pool)
-            .await?
+        let result_row = if let Some(row) = existing_item {
+            let existing_quantity: i32 = row.try_get("quantity")?;
+            let new_quantity = existing_quantity + quantity;
+            sqlx::query("UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id")
+                .bind(new_quantity)
+                .bind(name)
+                .fetch_one(self.pool)
+                .await?
         } else {
-            sqlx::query_scalar!(
-                "INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id",
-                name,
-                quantity
-            )
-            .fetch_one(self.pool)
-            .await?
+            sqlx::query("INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id")
+                .bind(name)
+                .bind(quantity)
+                .fetch_one(self.pool)
+                .await?
         };
-        let id = result;
+        let id: uuid::Uuid = result_row.try_get("id")?;
         Ok(FoodItem {
             id,
             name: item.name.clone(),
