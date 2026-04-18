@@ -147,7 +147,7 @@ Those tests require a reachable PostgreSQL 18+ instance and use the `DATABASE_UR
 
 ## Database notes
 
-- Schema files live under `binaries/inventory_bin/migrations`
+- Schema files live under `crates/inventory_svc/migrations`
 - The current table is `food_items`
 - Repeated inserts for the same food name are merged by increasing quantity
 - PostgreSQL 18+ is required because the migration uses `uuidv7()`

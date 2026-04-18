@@ -11,3 +11,4 @@ uuid.default-features = true
 uuid.workspace = true
 inventory = { path = "../inventory" }
 async-trait.workspace = true
+async-trait.default-features = true

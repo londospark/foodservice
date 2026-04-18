@@ -7,5 +7,7 @@ edition = "2024"
 anyhow.default-features = true
 anyhow.workspace = true
 async-trait.workspace = true
+async-trait.default-features = true
+reqwest = { workspace = true, default-features = true }
 uuid.default-features = true
 uuid.workspace = true

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/gateway", "crates/inventory", "binaries/gateway_bin", "binaries/inventory_bin", "crates/inventory_svc"]
+members = ["crates/gateway", "crates/inventory", "binaries/gateway_bin", "binaries/inventory_bin", "crates/inventory_svc", "xtask"]
 
 [workspace.dependencies]
 
@@ -23,3 +23,5 @@ tokio-macros = { default-features = false, version = "^2" }
 uuid = { default-features = false, features = ["v7"], version = "^1.23.0" }
 sqlx = { default-features = false, features = ["postgres", "runtime-tokio"], version = "^0.8.6" }
 async-trait = { default-features = false, version = "^0.1" }
+clap = { default-features = false, version = "^4.6.1" }
+reqwest = { default-features = false, version = "^0.13.2" }

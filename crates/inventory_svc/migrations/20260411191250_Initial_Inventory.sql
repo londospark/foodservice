@@ -4,4 +4,3 @@ CREATE TABLE IF NOT EXISTS food_items (
     name VARCHAR(255) UNIQUE NOT NULL,
     quantity INTEGER NOT NULL
 );
-
