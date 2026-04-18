@@ -64,7 +64,7 @@ mod tests {
 
     use crate::PostgresInventoryService;
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn the_database_is_setup(pool: PgPool) -> anyhow::Result<()> {
         let id_row =
             sqlx::query("INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id")
@@ -89,7 +89,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn adding_a_new_food_item_works(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         sut.add_food_item(&AddFoodItem {
@@ -111,7 +111,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn deduplication_works(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         sut.add_food_item(&AddFoodItem {
@@ -143,7 +143,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn list_of_food_items_can_be_retrieved(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         sut.add_food_item(&AddFoodItem {
@@ -176,7 +176,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn adding_zero_quantity_is_rejected(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         let result = sut
@@ -201,7 +201,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn adding_negative_quantity_is_rejected(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         let result = sut
@@ -226,7 +226,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn reducing_existing_stock_cannot_make_quantity_negative(
         pool: PgPool,
     ) -> anyhow::Result<()> {
@@ -263,7 +263,7 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = "../../binaries/inventory_bin/migrations")]
     async fn blank_food_names_are_rejected(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         let result = sut

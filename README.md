@@ -140,14 +140,14 @@ mutation {
 The inventory code is exercised through tests right now rather than a standalone HTTP service:
 
 ```bash
-cargo test -p inventory
+cargo test -p inventory_svc --lib
 ```
 
 Those tests require a reachable PostgreSQL 18+ instance and use the `DATABASE_URL` from your environment.
 
 ## Database notes
 
-- Schema files live under `crates/inventory/migrations`
+- Schema files live under `binaries/inventory_bin/migrations`
 - The current table is `food_items`
 - Repeated inserts for the same food name are merged by increasing quantity
 - PostgreSQL 18+ is required because the migration uses `uuidv7()`
