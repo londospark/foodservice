@@ -84,21 +84,18 @@ jobs:
           job_summary: true
           check_annotations: true
 
-      - name: Publish coverage summary
+      - name: Publish coverage check
+        id: coverage_report
         if: always() && hashFiles('coverage.xml') != ''
-        uses: irongut/CodeCoverageSummary@v1.3.0
+        continue-on-error: true
+        uses: 5monkeys/cobertura-action@v14
         with:
-          filename: coverage.xml
-          badge: true
-          format: markdown
-          output: both
-
-      - name: Comment coverage on pull request
-        if: github.event_name == 'pull_request' && always() && hashFiles('code-coverage-results.md') != ''
-        uses: marocchino/sticky-pull-request-comment@v3.0.4
-        with:
-          recreate: true
-          path: code-coverage-results.md
+          path: coverage.xml
+          report_name: Coverage
+          fail_below_threshold: false
+          show_line: true
+          show_branch: true
+          skip_covered: false
 
       - name: Upload test and coverage artifacts
         if: always()
@@ -109,10 +106,10 @@ jobs:
           path: |
             target/nextest/ci/junit.xml
             coverage.xml
-            code-coverage-results.md
 
       - name: Fail if tests or coverage failed
         if: always()
         run: |
           [ "${{ steps.verification.outcome }}" = "success" ] || exit 1
           [ "${{ steps.test_report.outcome }}" = "success" ] || exit 1
+          [ "${{ steps.coverage_report.outcome }}" = "success" ] || exit 1
