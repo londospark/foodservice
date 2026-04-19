@@ -1,4 +1,4 @@
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use async_graphql::{Object, SimpleObject};
 use uuid::Uuid;
 
