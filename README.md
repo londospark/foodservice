@@ -56,6 +56,14 @@ The workspace already leans on crate-local tests:
 
 This makes `cargo test` the main validation path for the whole workspace.
 
+## Continuous integration
+
+GitHub Actions is configured to run the workspace test suite on every push to `master`/`main`, on pull requests targeting those branches, and on manual dispatches.
+
+The workflow runs only on a self-hosted runner with the labels `self-hosted`, `linux`, `x64`, and `hk-47`.
+
+You can reuse the same self-hosted machine for multiple repositories. You only need additional runners if you want more parallel jobs, stronger isolation between repositories, or separate capacity from your day-to-day development environment.
+
 ## Requirements
 
 - Rust toolchain with `cargo`
