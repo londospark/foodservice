@@ -1,0 +1,4 @@
+[jobs.test-all]
+command = ["cargo", "xtask", "test"]
+need_stdout = true
+allow_warnings = true
