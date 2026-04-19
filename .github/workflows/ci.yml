@@ -26,8 +26,6 @@ jobs:
       - linux
       - x64
       - hk-47
-    env:
-      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/foodservice
     services:
       postgres:
         image: postgres:18
@@ -53,4 +51,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run xtask test
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/foodservice
         run: cargo xtask test
