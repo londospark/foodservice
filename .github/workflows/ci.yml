@@ -52,5 +52,5 @@ jobs:
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Run workspace tests
-        run: cargo test --workspace --all-targets --no-fail-fast
+      - name: Run xtask test
+        run: cargo xtask test
