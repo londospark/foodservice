@@ -88,14 +88,53 @@ jobs:
         id: coverage_report
         if: always() && hashFiles('coverage.xml') != ''
         continue-on-error: true
-        uses: 5monkeys/cobertura-action@v14
+        uses: actions/github-script@v9.0.0
         with:
-          path: coverage.xml
-          report_name: Coverage
-          fail_below_threshold: false
-          show_line: true
-          show_branch: true
-          skip_covered: false
+          script: |
+            const fs = require('fs');
+            const xml = fs.readFileSync('coverage.xml', 'utf8');
+
+            const rootTag = xml.match(/<coverage\b([^>]*)>/);
+            if (!rootTag) {
+              core.setFailed('Could not find <coverage> root in coverage.xml');
+              return;
+            }
+
+            const attrs = Object.fromEntries(
+              [...rootTag[1].matchAll(/([\w-]+)="([^"]*)"/g)].map(([, key, value]) => [key, value])
+            );
+
+            const asPercent = (value) => `${(Number(value || 0) * 100).toFixed(2)}%`;
+            const asInt = (value) => Number(value || 0).toLocaleString('en-US');
+
+            const lineRate = asPercent(attrs['line-rate']);
+            const branchRate = asPercent(attrs['branch-rate']);
+            const linesCovered = asInt(attrs['lines-covered']);
+            const linesValid = asInt(attrs['lines-valid']);
+            const branchesCovered = asInt(attrs['branches-covered']);
+            const branchesValid = asInt(attrs['branches-valid']);
+
+            const summary = [
+              '## Coverage',
+              '',
+              '| Metric | Covered | Total | Rate |',
+              '| --- | ---: | ---: | ---: |',
+              `| Lines | ${linesCovered} | ${linesValid} | ${lineRate} |`,
+              `| Branches | ${branchesCovered} | ${branchesValid} | ${branchRate} |`,
+            ].join('\n');
+
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Coverage',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: 'success',
+              output: {
+                title: 'Coverage Summary',
+                summary,
+              },
+            });
 
       - name: Upload test and coverage artifacts
         if: always()
