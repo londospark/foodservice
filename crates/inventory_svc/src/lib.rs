@@ -177,6 +177,68 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn newly_added_food_appears_in_inventory_reads(pool: PgPool) -> anyhow::Result<()> {
+        let sut = PostgresInventoryService { pool: &pool };
+        sut.add_food_item(&AddFoodItem {
+            name: "Milk".to_string(),
+            quantity: 2,
+        })
+        .await?;
+
+        let rows = sqlx::query("SELECT name, quantity FROM food_items")
+            .fetch_all(&pool)
+            .await?;
+
+        let mut items = Vec::new();
+        for row in rows {
+            let name: String = row.try_get("name")?;
+            let quantity: i32 = row.try_get("quantity")?;
+            items.push((name, quantity));
+        }
+
+        assert!(
+            items.contains(&("Milk".to_string(), 2)),
+            "Newly added food should be visible from inventory reads"
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn food_item_ids_are_stable_across_repeated_reads(pool: PgPool) -> anyhow::Result<()> {
+        let sut = PostgresInventoryService { pool: &pool };
+        let added = sut
+            .add_food_item(&AddFoodItem {
+                name: "Pizza".to_string(),
+                quantity: 4,
+            })
+            .await?;
+
+        let first = sqlx::query("SELECT id FROM food_items WHERE name = $1")
+            .bind("Pizza")
+            .fetch_one(&pool)
+            .await?;
+        let second = sqlx::query("SELECT id FROM food_items WHERE name = $1")
+            .bind("Pizza")
+            .fetch_one(&pool)
+            .await?;
+
+        let first_id: Uuid = first.try_get("id")?;
+        let second_id: Uuid = second.try_get("id")?;
+
+        assert_eq!(
+            first_id, added.id,
+            "Stored inventory IDs should match the ID returned when the item was created"
+        );
+        assert_eq!(
+            first_id, second_id,
+            "Inventory item IDs should be stable across repeated reads of the same row"
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
     async fn adding_zero_quantity_is_rejected(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         let result = sut
