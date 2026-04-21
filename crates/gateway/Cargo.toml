@@ -5,8 +5,9 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true , default-features = true }
+async-trait = { workspace = true, default-features = true }
 async-graphql = { workspace = true , features = ["uuid"], default-features = true }
+inventory = { path = "../inventory" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] , default-features = true }
 tokio-macros = { workspace = true , default-features = true }
 uuid = { workspace = true, features = ["v7"], default-features = true }
-

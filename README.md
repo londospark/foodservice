@@ -1,88 +1,67 @@
 # foodservice
 
-`foodservice` is a Rust workspace for tracking what food is available in the house, organized as small services plus shared library crates. Today the project has a runnable GraphQL gateway, a PostgreSQL-backed inventory crate, and a placeholder inventory service binary that has not been wired into a network service yet.
+`foodservice` is a Rust workspace for tracking household food inventory. Right now it contains:
+
+- a runnable GraphQL gateway on port `3000`
+- a PostgreSQL-backed inventory service crate
+- a small placeholder inventory HTTP binary on port `3001`
+- shared inventory DTOs and traits for wiring the services together later
 
 ## Workspace layout
 
 | Path | Purpose |
 | --- | --- |
-| `crates/gateway` | GraphQL schema, resolvers, and gateway-focused tests |
-| `crates/inventory` | Inventory persistence logic, SQL migrations, and database tests |
-| `services/gateway-svc` | Axum binary that serves the GraphQL endpoint on port `3000` |
-| `services/inventory-svc` | Placeholder binary for a future standalone inventory service |
+| `crates/gateway` | GraphQL schema, resolvers, and gateway tests |
+| `crates/inventory` | Shared inventory DTOs, trait definitions, and a placeholder client |
+| `crates/inventory_svc` | PostgreSQL-backed `InventoryService` implementation and SQLx tests |
+| `binaries/gateway_bin` | Axum server that exposes the GraphQL gateway on port `3000` |
+| `binaries/inventory_bin` | Placeholder Axum HTTP server on port `3001` |
+| `xtask` | Workspace automation crate |
 
-## Patterns currently used
+## Current architecture
 
-### 1. Cargo workspace with shared dependencies
+### GraphQL gateway
 
-The repository uses a top-level Cargo workspace to keep versions and shared dependencies centralized. Common crates like `axum`, `async-graphql`, `tokio`, `sqlx`, and `uuid` are declared once in the root `Cargo.toml` and then reused by member crates.
+The external entry point today is the GraphQL gateway in `binaries/gateway_bin`.
 
-### 2. Library crates for business logic, service crates for delivery
+- `async-graphql` defines the schema in `crates/gateway`
+- `axum` serves the endpoint
+- Apollo Sandbox is embedded at `/`
 
-The codebase separates domain logic from transport/runtime concerns:
+The gateway currently returns in-memory data for `listFood`, `addFood`, and `deleteFood`. It does not yet call the inventory client or the PostgreSQL-backed inventory service crate.
 
-- `crates/*` holds reusable logic.
-- `services/*` holds binaries that turn that logic into long-running processes.
+### Inventory domain
 
-That pattern is already visible in the gateway path: the GraphQL schema lives in `crates/gateway`, while the HTTP server lives in `services/gateway-svc`.
+The shared inventory domain lives in `crates/inventory`.
 
-### 3. GraphQL at the edge
+- `dto.rs` defines `AddFoodItem` and `FoodItem`
+- `traits.rs` defines the `InventoryService` trait
+- `client.rs` contains a placeholder `reqwest`-based client implementation that is not yet wired to a real service
 
-The current external interface is GraphQL:
+### PostgreSQL-backed inventory service crate
 
-- `async-graphql` defines the schema, queries, and mutations.
-- `axum` hosts the HTTP server.
-- `async-graphql-axum` wires the schema into the router.
-- The gateway serves an embedded Apollo sandbox at `/` for interactive testing.
+`crates/inventory_svc` contains the real persistence logic so far.
 
-At the moment the gateway uses in-memory example data for reads and mutations rather than calling the inventory crate.
+- it implements `InventoryService` against PostgreSQL
+- it stores data in the `food_items` table
+- repeated inserts for the same `name` increase `quantity` instead of creating duplicate rows
+- the migration uses `uuidv7()`, so PostgreSQL `18+` is required
 
-### 4. PostgreSQL-backed inventory logic
+This is the most complete part of the system today, but it is still a library crate rather than a networked microservice.
 
-The inventory crate uses `sqlx` with PostgreSQL. Its current behavior is intentionally small and focused:
+### Inventory HTTP binary
 
-- `food_items` is the backing table.
-- `name` is unique.
-- adding the same item twice increments quantity instead of creating duplicates.
-
-The schema migration uses `uuidv7()` as the default ID generator, which means **PostgreSQL 18 or newer is required** for the provided setup.
-
-### 5. Tests close to the code they verify
-
-The workspace already leans on crate-local tests:
-
-- `crates/gateway` has GraphQL tests that execute the schema directly.
-- `crates/inventory` uses `#[sqlx::test]` to run against temporary PostgreSQL databases with migrations applied.
-
-This makes `cargo test` the main validation path for the whole workspace.
-
-## Continuous integration
-
-GitHub Actions is configured to run the workspace test suite on every push to `master`/`main`, on pull requests targeting those branches, and on manual dispatches.
-
-The workflow runs only on a self-hosted runner with the labels `self-hosted`, `linux`, `x64`, and `hk-47`.
-
-You can reuse the same self-hosted machine for multiple repositories. You only need additional runners if you want more parallel jobs, stronger isolation between repositories, or separate capacity from your day-to-day development environment.
+`binaries/inventory_bin` starts an Axum server on port `3001`, but it is still a stub. It serves simple text responses and is not connected to PostgreSQL or `crates/inventory_svc`.
 
 ## Requirements
 
 - Rust toolchain with `cargo`
 - Docker with Docker Compose support
-- PostgreSQL **18+** if you are not using Docker
+- PostgreSQL `18+` if you are not using Docker
 
-## Environment
+## Local database
 
-Copy the example environment file before running database-backed tests:
-
-```bash
-cp .env.example .env
-```
-
-The workspace currently relies on `DATABASE_URL` for the inventory crate and SQLx-powered tests.
-
-## Start PostgreSQL with Docker
-
-A ready-to-use Compose file is included at the repository root. Start PostgreSQL 18 with:
+A ready-to-use Compose file is included at the repository root:
 
 ```bash
 docker compose up -d postgres
@@ -94,28 +73,46 @@ Stop it with:
 docker compose down
 ```
 
-If you want to remove the local database volume as well:
+Remove the local database volume as well:
 
 ```bash
 docker compose down -v
 ```
 
-## Getting the project running
+## Environment
 
-1. Copy the example env file.
-2. Start PostgreSQL: `docker compose up -d postgres`
-3. Run the test suite: `cargo test`
-4. Start the gateway service: `cargo run -p gateway-svc`
+Database-backed tests use `DATABASE_URL`.
+
+Example:
+
+```bash
+export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/foodservice
+```
+
+## Getting started
+
+1. Start PostgreSQL: `docker compose up -d postgres`
+2. Export `DATABASE_URL`
+3. Run the workspace tests: `cargo test`
+4. Start the GraphQL gateway: `cargo run -p gateway_bin`
 5. Open `http://127.0.0.1:3000`
+
+If you want to see the placeholder inventory HTTP server as well:
+
+```bash
+cargo run -p inventory_bin
+```
+
+Then open `http://127.0.0.1:3001`.
 
 ## What runs today
 
-### GraphQL gateway
+### Gateway example
 
 Run:
 
 ```bash
-cargo run -p gateway-svc
+cargo run -p gateway_bin
 ```
 
 Then open `http://127.0.0.1:3000` and try:
@@ -143,25 +140,27 @@ mutation {
 }
 ```
 
-### Inventory crate
+### Inventory service crate tests
 
-The inventory code is exercised through tests right now rather than a standalone HTTP service:
+The PostgreSQL-backed inventory logic is currently exercised through tests:
 
 ```bash
-cargo test -p inventory_svc --lib
+cargo test -p inventory_svc
 ```
 
-Those tests require a reachable PostgreSQL 18+ instance and use the `DATABASE_URL` from your environment.
+Those tests require a reachable PostgreSQL `18+` instance and `DATABASE_URL` in the environment.
 
 ## Database notes
 
-- Schema files live under `crates/inventory_svc/migrations`
-- The current table is `food_items`
-- Repeated inserts for the same food name are merged by increasing quantity
-- PostgreSQL 18+ is required because the migration uses `uuidv7()`
+- migration files live under `crates/inventory_svc/migrations`
+- the current table is `food_items`
+- `name` is unique
+- repeated inserts for the same food merge by increasing quantity
+- PostgreSQL `18+` is required because the migration uses `uuidv7()`
 
 ## Current limitations
 
-- `services/inventory-svc` is still a placeholder binary
-- The gateway does not yet call the PostgreSQL-backed inventory crate
-- There is no end-to-end service-to-service flow yet; the repository currently shows the architectural direction and the first service boundaries
+- the gateway still uses in-memory data instead of calling inventory over a service boundary
+- `crates/inventory/client.rs` is still a placeholder
+- `binaries/inventory_bin` is not wired to PostgreSQL or `crates/inventory_svc`
+- there is no end-to-end gateway -> inventory service flow yet
