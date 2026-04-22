@@ -1,0 +1,6 @@
+target
+.git
+.github
+.copilot
+.env
+coverage.txt

@@ -59,15 +59,33 @@ This is the most complete part of the system today, but it is still a library cr
 - Docker with Docker Compose support
 - PostgreSQL `18+` if you are not using Docker
 
-## Local database
+## Local stack
 
-A ready-to-use Compose file is included at the repository root:
+A ready-to-use Compose file is included at the repository root. It starts:
+
+- PostgreSQL on `5432`
+- the inventory HTTP service on `3001`
+- the GraphQL gateway on `3000`
+
+Bring up the whole stack with:
+
+```bash
+docker compose up --build
+```
+
+If you previously started this project with an older PostgreSQL volume layout, reset the local database volume once before bringing the stack back up:
+
+```bash
+docker compose down -v
+```
+
+If you only want PostgreSQL for local cargo-driven development:
 
 ```bash
 docker compose up -d postgres
 ```
 
-Stop it with:
+Stop the stack with:
 
 ```bash
 docker compose down
@@ -91,19 +109,17 @@ export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/foodservice
 
 ## Getting started
 
+1. Bring up the stack: `docker compose up --build`
+2. Open the gateway at `http://127.0.0.1:3000`
+3. Open the inventory service at `http://127.0.0.1:3001`
+
+For local cargo-driven development instead of containers:
+
 1. Start PostgreSQL: `docker compose up -d postgres`
 2. Export `DATABASE_URL`
 3. Run the workspace tests: `cargo test`
-4. Start the GraphQL gateway: `cargo run -p gateway_bin`
-5. Open `http://127.0.0.1:3000`
-
-If you want to see the placeholder inventory HTTP server as well:
-
-```bash
-cargo run -p inventory_bin
-```
-
-Then open `http://127.0.0.1:3001`.
+4. Start the inventory service: `cargo run -p inventory_bin`
+5. Start the GraphQL gateway: `cargo run -p gateway_bin`
 
 ## What runs today
 
@@ -149,6 +165,15 @@ cargo test -p inventory_svc
 ```
 
 Those tests require a reachable PostgreSQL `18+` instance and `DATABASE_URL` in the environment.
+
+### Compose service discovery
+
+Inside Docker Compose, services reach each other by service name:
+
+- the gateway should call inventory at `http://inventory:3001`
+- inventory should call PostgreSQL at `postgres://postgres:postgres@postgres:5432/foodservice`
+
+That is why the Compose file sets `INVENTORY_BASE_URL` and `DATABASE_URL` with those hostnames instead of `localhost`.
 
 ## Database notes
 

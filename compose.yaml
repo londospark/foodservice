@@ -16,5 +16,32 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
 
+  inventory:
+    build:
+      context: .
+      dockerfile: binaries/inventory_bin/Dockerfile
+    container_name: foodservice-inventory
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/foodservice
+      RUST_LOG: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: binaries/gateway_bin/Dockerfile
+    container_name: foodservice-gateway
+    environment:
+      INVENTORY_BASE_URL: http://inventory:3001
+      RUST_LOG: info
+    depends_on:
+      - inventory
+    ports:
+      - "3000:3000"
+
 volumes:
   postgres-data:
