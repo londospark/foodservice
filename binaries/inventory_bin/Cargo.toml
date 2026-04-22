@@ -4,5 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = { workspace = true, default-features = true }
+async-trait = { workspace = true, default-features = true }
 axum = { workspace = true, features = ["http1", "macros", "tokio"], default-features = true }
+inventory = { path = "../../crates/inventory" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] , default-features = true }
+uuid = { workspace = true, default-features = true }
+
+[dev-dependencies]
+tower = { workspace = true, default-features = true }
