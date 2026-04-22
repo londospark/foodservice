@@ -953,7 +953,9 @@ dependencies = [
  "async-graphql-axum",
  "axum",
  "gateway",
+ "inventory",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
