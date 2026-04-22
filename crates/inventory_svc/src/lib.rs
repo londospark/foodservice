@@ -4,9 +4,16 @@ use inventory::dto::AddFoodItem;
 use inventory::dto::FoodItem;
 use inventory::traits::InventoryService;
 use sqlx::{PgPool, Row};
+use uuid::Uuid;
 
 pub struct PostgresInventoryService<'a> {
     pool: &'a PgPool,
+}
+
+impl<'a> PostgresInventoryService<'a> {
+    pub fn new(pool: &'a PgPool) -> Self {
+        Self { pool }
+    }
 }
 
 #[async_trait]
@@ -33,23 +40,58 @@ impl InventoryService for PostgresInventoryService<'_> {
         let result_row = if let Some(row) = existing_item {
             let existing_quantity: i32 = row.try_get("quantity")?;
             let new_quantity = existing_quantity + quantity;
-            sqlx::query("UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id")
-                .bind(new_quantity)
-                .bind(name)
-                .fetch_one(self.pool)
-                .await?
+            sqlx::query(
+                "UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id, quantity",
+            )
+            .bind(new_quantity)
+            .bind(name)
+            .fetch_one(self.pool)
+            .await?
         } else {
-            sqlx::query("INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id")
-                .bind(name)
-                .bind(quantity)
-                .fetch_one(self.pool)
-                .await?
+            sqlx::query(
+                "INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id, quantity",
+            )
+            .bind(name)
+            .bind(quantity)
+            .fetch_one(self.pool)
+            .await?
         };
         let id: uuid::Uuid = result_row.try_get("id")?;
+        let quantity: i32 = result_row.try_get("quantity")?;
         Ok(FoodItem {
             id,
             name: item.name.clone(),
-            quantity: item.quantity,
+            quantity: quantity,
+        })
+    }
+
+    async fn list_food_items(&self) -> Result<Vec<FoodItem>> {
+        let rows = sqlx::query("SELECT id, name, quantity FROM food_items ORDER BY name ASC")
+            .fetch_all(self.pool)
+            .await?;
+
+        let mut items = Vec::with_capacity(rows.len());
+        for row in rows {
+            items.push(FoodItem {
+                id: row.try_get("id")?,
+                name: row.try_get("name")?,
+                quantity: row.try_get("quantity")?,
+            });
+        }
+
+        Ok(items)
+    }
+
+    async fn delete_food_item(&self, id: Uuid) -> Result<FoodItem> {
+        let row = sqlx::query("DELETE FROM food_items WHERE id = $1 RETURNING id, name, quantity")
+            .bind(id)
+            .fetch_one(self.pool)
+            .await?;
+
+        Ok(FoodItem {
+            id: row.try_get("id")?,
+            name: row.try_get("name")?,
+            quantity: row.try_get("quantity")?,
         })
     }
 }
@@ -139,6 +181,30 @@ mod tests {
 
         assert_eq!(name, "Pizza");
         assert_eq!(quantity, 10);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn deduplication_returns_the_merged_quantity(pool: PgPool) -> anyhow::Result<()> {
+        let sut = PostgresInventoryService::new(&pool);
+        sut.add_food_item(&AddFoodItem {
+            name: "Pizza".to_string(),
+            quantity: 4,
+        })
+        .await?;
+
+        let updated = sut
+            .add_food_item(&AddFoodItem {
+                name: "Pizza".to_string(),
+                quantity: 6,
+            })
+            .await?;
+
+        assert_eq!(
+            updated.quantity, 10,
+            "The service response should report the stored merged quantity after deduplication"
+        );
 
         Ok(())
     }

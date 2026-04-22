@@ -73,6 +73,12 @@ Bring up the whole stack with:
 docker compose up --build
 ```
 
+Run a repeatable end-to-end smoke test against the Compose stack with:
+
+```bash
+cargo run -p xtask -- smoke
+```
+
 If you previously started this project with an older PostgreSQL volume layout, reset the local database volume once before bringing the stack back up:
 
 ```bash

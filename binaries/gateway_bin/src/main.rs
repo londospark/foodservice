@@ -35,9 +35,10 @@ fn schema_from_inventory_env_var() -> Schema<Query, Mutation, EmptySubscription>
 fn schema_from_inventory_base_url(
     inventory_base_url: &str,
 ) -> Schema<Query, Mutation, EmptySubscription> {
+    let inventory = Arc::new(InventoryClient::new(inventory_base_url));
     Schema::build(
-        Query,
-        Mutation::new(Arc::new(InventoryClient::new(inventory_base_url))),
+        Query::new(inventory.clone()),
+        Mutation::new(inventory),
         EmptySubscription,
     )
     .finish()
@@ -72,7 +73,10 @@ mod tests {
     };
     use inventory::{
         dto::{AddFoodItem, FoodItem},
-        protocol::{INVENTORY_V1_BINCODE_MEDIA_TYPE, decode_add_food_item, encode_food_item},
+        protocol::{
+            INVENTORY_V1_BINCODE_MEDIA_TYPE, decode_add_food_item, encode_food_item,
+            encode_food_items,
+        },
     };
     use uuid::Uuid;
 
@@ -136,6 +140,86 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn configured_gateway_schema_uses_the_inventory_service_for_list_food() {
+        let upstream_items = vec![
+            FoodItem {
+                id: Uuid::parse_str("00000000-0000-0000-0000-000000000041").unwrap(),
+                name: "Milk".to_string(),
+                quantity: 2,
+            },
+            FoodItem {
+                id: Uuid::parse_str("00000000-0000-0000-0000-000000000042").unwrap(),
+                name: "Eggs".to_string(),
+                quantity: 12,
+            },
+        ];
+        let base_url = spawn_test_server(success_app_for_list(upstream_items.clone())).await;
+        let schema = schema_from_inventory_base_url(&base_url);
+
+        let response = schema
+            .execute(Request::new(
+                r#"
+                query {
+                    listFood {
+                        id
+                        name
+                        qty
+                    }
+                }
+            "#,
+            ))
+            .await;
+
+        assert!(
+            response.errors.is_empty(),
+            "gateway reads should succeed when the upstream inventory service accepts the request"
+        );
+        assert_eq!(
+            response.data.to_string(),
+            "{listFood: [{id: \"00000000-0000-0000-0000-000000000041\", name: \"Milk\", qty: 2}, {id: \"00000000-0000-0000-0000-000000000042\", name: \"Eggs\", qty: 12}]}",
+            "the running gateway configuration should surface the real inventory service read response"
+        );
+    }
+
+    #[tokio::test]
+    async fn configured_gateway_schema_uses_the_inventory_service_for_delete_food() {
+        let deleted_id = Uuid::parse_str("00000000-0000-0000-0000-000000000043").unwrap();
+        let deleted_item = FoodItem {
+            id: deleted_id,
+            name: "Milk".to_string(),
+            quantity: 2,
+        };
+        let base_url = spawn_test_server(success_app_for_delete(deleted_item.clone())).await;
+        let schema = schema_from_inventory_base_url(&base_url);
+
+        let response = schema
+            .execute(Request::new(format!(
+                r#"
+                mutation {{
+                    deleteFood(id: "{deleted_id}") {{
+                        id
+                        name
+                        qty
+                    }}
+                }}
+            "#
+            )))
+            .await;
+
+        assert!(
+            response.errors.is_empty(),
+            "gateway deletes should succeed when the upstream inventory service accepts the request"
+        );
+        assert_eq!(
+            response.data.to_string(),
+            format!(
+                "{{deleteFood: {{id: \"{deleted_id}\", name: \"Milk\", qty: 2}}}}"
+            ),
+            "the running gateway configuration should surface the real inventory service delete response"
+        );
+    }
+
     fn success_app(response: FoodItem) -> Router {
         Router::new().route(
             "/food",
@@ -148,6 +232,38 @@ mod tests {
 
     fn error_app(status: StatusCode) -> Router {
         Router::new().route("/food", post(move || async move { status }))
+    }
+
+    fn success_app_for_list(response: Vec<FoodItem>) -> Router {
+        Router::new().route(
+            "/food",
+            axum::routing::get(move || {
+                let response = response.clone();
+                async move {
+                    (
+                        StatusCode::OK,
+                        [(CONTENT_TYPE, INVENTORY_V1_BINCODE_MEDIA_TYPE)],
+                        encode_food_items(&response).expect("test response should encode"),
+                    )
+                }
+            }),
+        )
+    }
+
+    fn success_app_for_delete(response: FoodItem) -> Router {
+        Router::new().route(
+            "/food/{id}",
+            axum::routing::delete(move || {
+                let response = response.clone();
+                async move {
+                    (
+                        StatusCode::OK,
+                        [(CONTENT_TYPE, INVENTORY_V1_BINCODE_MEDIA_TYPE)],
+                        encode_food_item(&response).expect("test response should encode"),
+                    )
+                }
+            }),
+        )
     }
 
     async fn success_handler(

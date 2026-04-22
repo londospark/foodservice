@@ -1370,6 +1370,8 @@ dependencies = [
  "async-trait",
  "axum",
  "inventory",
+ "inventory_svc",
+ "sqlx",
  "tokio",
  "tower",
  "uuid",
@@ -2092,6 +2094,8 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "rustls-platform-verifier",
+ "serde",
+ "serde_json",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -3748,7 +3752,11 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
+ "reqwest",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

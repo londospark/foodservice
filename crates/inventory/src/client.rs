@@ -3,6 +3,7 @@ use crate::{
     protocol::decode_food_item,
     traits::InventoryService,
 };
+use uuid::Uuid;
 
 pub struct InventoryClient {
     pub client: reqwest::Client,
@@ -40,9 +41,49 @@ impl InventoryService for InventoryClient {
             .filter(|media_type| media_type == &crate::protocol::INVENTORY_V1_BINCODE_MEDIA_TYPE)
             .ok_or_else(|| anyhow::anyhow!("unexpected media type in response"))?;
 
-        let response = result.text().await?;
+        let response = result.bytes().await?;
 
-        decode_food_item(response.as_bytes())
+        decode_food_item(response.as_ref())
+    }
+
+    async fn list_food_items(&self) -> anyhow::Result<Vec<FoodItem>> {
+        let result = self
+            .client
+            .get(format!("{}/food", self.base_url))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        result
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .filter(|media_type| media_type == &crate::protocol::INVENTORY_V1_BINCODE_MEDIA_TYPE)
+            .ok_or_else(|| anyhow::anyhow!("unexpected media type in response"))?;
+
+        let response = result.bytes().await?;
+
+        crate::protocol::decode_food_items(response.as_ref())
+    }
+
+    async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
+        let result = self
+            .client
+            .delete(format!("{}/food/{}", self.base_url, id))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        result
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .filter(|media_type| media_type == &crate::protocol::INVENTORY_V1_BINCODE_MEDIA_TYPE)
+            .ok_or_else(|| anyhow::anyhow!("unexpected media type in response"))?;
+
+        let response = result.bytes().await?;
+
+        decode_food_item(response.as_ref())
     }
 }
 
