@@ -17,6 +17,15 @@ impl InventoryClient {
             base_url: base_url.into(),
         }
     }
+
+    fn has_correct_media_type(result: &reqwest::Response) -> bool {
+        result
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .filter(|media_type| media_type == &crate::protocol::INVENTORY_V1_BINCODE_MEDIA_TYPE)
+            .is_some()
+    }
 }
 
 #[async_trait::async_trait]
@@ -34,12 +43,9 @@ impl InventoryService for InventoryClient {
             .await?
             .error_for_status()?;
 
-        result
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .filter(|media_type| media_type == &crate::protocol::INVENTORY_V1_BINCODE_MEDIA_TYPE)
-            .ok_or_else(|| anyhow::anyhow!("unexpected media type in response"))?;
+        if !Self::has_correct_media_type(&result) {
+            return Err(anyhow::anyhow!("unexpected media type in response"));
+        }
 
         let response = result.bytes().await?;
 
@@ -54,12 +60,9 @@ impl InventoryService for InventoryClient {
             .await?
             .error_for_status()?;
 
-        result
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .filter(|media_type| media_type == &crate::protocol::INVENTORY_V1_BINCODE_MEDIA_TYPE)
-            .ok_or_else(|| anyhow::anyhow!("unexpected media type in response"))?;
+        if !Self::has_correct_media_type(&result) {
+            return Err(anyhow::anyhow!("unexpected media type in response"));
+        }
 
         let response = result.bytes().await?;
 
@@ -74,12 +77,9 @@ impl InventoryService for InventoryClient {
             .await?
             .error_for_status()?;
 
-        result
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .filter(|media_type| media_type == &crate::protocol::INVENTORY_V1_BINCODE_MEDIA_TYPE)
-            .ok_or_else(|| anyhow::anyhow!("unexpected media type in response"))?;
+        if !Self::has_correct_media_type(&result) {
+            return Err(anyhow::anyhow!("unexpected media type in response"));
+        }
 
         let response = result.bytes().await?;
 
