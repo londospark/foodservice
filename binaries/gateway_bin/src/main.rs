@@ -26,6 +26,12 @@ fn playground(endpoint: impl AsRef<str> + std::fmt::Display) -> String {
     )
 }
 
+fn schema_from_inventory_env_var() -> Schema<Query, Mutation, EmptySubscription> {
+    let inventory_base_url = std::env::var("INVENTORY_BASE_URL")
+        .expect("INVENTORY_BASE_URL environment variable must be set");
+    schema_from_inventory_base_url(&inventory_base_url)
+}
+
 fn schema_from_inventory_base_url(
     inventory_base_url: &str,
 ) -> Schema<Query, Mutation, EmptySubscription> {
@@ -43,7 +49,7 @@ async fn graphiql_handler() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let schema = schema_from_inventory_base_url("http://inventory:3001");
+    let schema = schema_from_inventory_env_var();
     let app = Router::new().route(
         "/",
         get(graphiql_handler).post_service(GraphQL::new(schema)),
