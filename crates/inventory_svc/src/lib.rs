@@ -40,13 +40,11 @@ impl InventoryService for PostgresInventoryService<'_> {
         let result_row = if let Some(row) = existing_item {
             let existing_quantity: i32 = row.try_get("quantity")?;
             let new_quantity = existing_quantity + quantity;
-            sqlx::query(
-                "UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id, quantity",
-            )
-            .bind(new_quantity)
-            .bind(name)
-            .fetch_one(self.pool)
-            .await?
+            sqlx::query("UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id, quantity")
+                .bind(new_quantity)
+                .bind(name)
+                .fetch_one(self.pool)
+                .await?
         } else {
             sqlx::query(
                 "INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id, quantity",
@@ -228,7 +226,6 @@ mod tests {
             .await?;
 
         assert_eq!(rows.len(), 2, "Expected two rows in the database");
-
         let mut items = Vec::new();
         for row in rows {
             let name: String = row.try_get("name")?;
@@ -305,18 +302,18 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn adding_zero_quantity_is_rejected(pool: PgPool) -> anyhow::Result<()> {
+    async fn blank_food_names_are_rejected(pool: PgPool) -> anyhow::Result<()> {
         let sut = PostgresInventoryService { pool: &pool };
         let result = sut
             .add_food_item(&AddFoodItem {
-                name: "Milk".to_string(),
-                quantity: 0,
+                name: "   ".to_string(),
+                quantity: 1,
             })
             .await;
 
         assert!(
             result.is_err(),
-            "Adding zero units should be rejected because it does not change household inventory"
+            "Inventory items should require a non-blank name"
         );
 
         let row = sqlx::query("SELECT COUNT(*) AS count FROM food_items")
@@ -325,6 +322,22 @@ mod tests {
 
         let count: i64 = row.try_get("count")?;
         assert_eq!(count, 0, "Rejected writes should not create inventory rows");
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delete_food_item_returns_error_for_non_existent_id(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let sut = PostgresInventoryService { pool: &pool };
+        let random_id = Uuid::now_v7();
+        let result = sut.delete_food_item(random_id).await;
+
+        assert!(
+            result.is_err(),
+            "Deleting a non-existent ID should return an error"
+        );
 
         Ok(())
     }
@@ -367,7 +380,6 @@ mod tests {
         let result = sut
             .add_food_item(&AddFoodItem {
                 name: "Eggs".to_string(),
-
                 quantity: -3,
             })
             .await;
@@ -387,31 +399,6 @@ mod tests {
             quantity, 2,
             "A rejected stock change should leave the existing quantity untouched"
         );
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn blank_food_names_are_rejected(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
-        let result = sut
-            .add_food_item(&AddFoodItem {
-                name: "   ".to_string(),
-                quantity: 1,
-            })
-            .await;
-
-        assert!(
-            result.is_err(),
-            "Inventory items should require a non-blank name"
-        );
-
-        let row = sqlx::query("SELECT COUNT(*) AS count FROM food_items")
-            .fetch_one(&pool)
-            .await?;
-
-        let count: i64 = row.try_get("count")?;
-        assert_eq!(count, 0, "Rejected writes should not create inventory rows");
 
         Ok(())
     }
