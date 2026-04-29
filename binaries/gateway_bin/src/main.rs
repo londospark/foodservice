@@ -213,9 +213,7 @@ mod tests {
         );
         assert_eq!(
             response.data.to_string(),
-            format!(
-                "{{deleteFood: {{id: \"{deleted_id}\", name: \"Milk\", qty: 2}}}}"
-            ),
+            format!("{{deleteFood: {{id: \"{deleted_id}\", name: \"Milk\", qty: 2}}}}"),
             "the running gateway configuration should surface the real inventory service delete response"
         );
     }
