@@ -153,7 +153,10 @@ impl GatewayInventoryService for RuntimePostgresInventoryService {
         let results = PostgresInventoryService::new(&self.pool)
             .list_food_items()
             .await?;
-        Ok(results.into_iter().map(|item| FoodItem::from(&item)).collect()) // Use references when mapping
+        Ok(results
+            .into_iter()
+            .map(|item| FoodItem::from(&item))
+            .collect()) // Use references when mapping
     }
 
     async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
@@ -178,6 +181,7 @@ mod tests {
             encode_add_food_item,
         },
         traits::GatewayInventoryService,
+        traits::ServiceInventoryService,
     };
     use inventory_svc::PostgresInventoryService;
     use sqlx::{PgPool, Row};
@@ -634,7 +638,10 @@ mod tests {
             let results = PostgresInventoryService::new(&self.pool)
                 .list_food_items()
                 .await?;
-            Ok(results.into_iter().map(|item| FoodItem::from(&item)).collect()) // Use references when mapping
+            Ok(results
+                .into_iter()
+                .map(|item| FoodItem::from(&item))
+                .collect()) // Use references when mapping
         }
 
         async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
