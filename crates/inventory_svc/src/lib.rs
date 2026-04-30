@@ -81,7 +81,8 @@ impl ServiceInventoryService for PostgresInventoryService<'_> {
         Ok(items)
     }
 
-    async fn delete_food_item(&self, id: Uuid) -> Result<FoodItem> { // Fix 2
+    async fn delete_food_item(&self, id: Uuid) -> Result<FoodItem> {
+        // Fix 2
         let row = sqlx::query("DELETE FROM food_items WHERE id = $1 RETURNING id, name, quantity")
             .bind(id)
             .fetch_one(self.pool)
