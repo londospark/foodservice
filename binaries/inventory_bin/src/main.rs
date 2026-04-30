@@ -59,7 +59,7 @@ async fn delete_food(
 ) -> impl IntoResponse {
     let inventory = &state.inventory_service;
     let response = inventory
-        .delete_food_item(&id) // Fix the method call
+        .delete_food_item(id) // Remove the & borrow
         .await
         .expect("inventory service should not fail in this example");
 
@@ -153,12 +153,12 @@ impl GatewayInventoryService for RuntimePostgresInventoryService {
         let results = PostgresInventoryService::new(&self.pool)
             .list_food_items()
             .await?;
-        Ok(results.into_iter().map(FoodItem::from).collect())
+        Ok(results.into_iter().map(|item| FoodItem::from(&item)).collect()) // Use references when mapping
     }
 
     async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
         let result = PostgresInventoryService::new(&self.pool)
-            .delete_food_item(&id) // Fix the method call
+            .delete_food_item(id) // Remove the & borrow
             .await?;
         Ok(FoodItem::from(&result))
     }
@@ -634,7 +634,7 @@ mod tests {
             let results = PostgresInventoryService::new(&self.pool)
                 .list_food_items()
                 .await?;
-            Ok(results.into_iter().map(FoodItem::from).collect())
+            Ok(results.into_iter().map(|item| FoodItem::from(&item)).collect()) // Use references when mapping
         }
 
         async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
