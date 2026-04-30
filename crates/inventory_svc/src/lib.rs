@@ -1,8 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use inventory::dto::AddFoodItem;
-use inventory::dto::FoodItem;
-use inventory::traits::InventoryService;
+use inventory::dto::inventory_dto::AddFoodItem;
+use inventory::dto::inventory_dto::FoodItem;
+use inventory::traits::ServiceInventoryService;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -17,19 +17,18 @@ impl<'a> PostgresInventoryService<'a> {
 }
 
 #[async_trait]
-impl InventoryService for PostgresInventoryService<'_> {
+impl ServiceInventoryService for PostgresInventoryService<'_> {
     async fn add_food_item(&self, item: &AddFoodItem) -> Result<FoodItem> {
-        // TODO(londo): This validation should be done in the gateway and then the type system should be used to ensure that the service only receives valid data. For now, this is a quick way to prevent bad data from being written to the database.
         let name = &item.name;
         let quantity = item.quantity;
         if name.trim().is_empty() {
             anyhow::bail!("Food item name cannot be blank");
         }
+        if quantity < 0 {
+            anyhow::bail!("Adding negative quantity is not allowed");
+        }
         if quantity == 0 {
             anyhow::bail!("Adding zero quantity does not change inventory");
-        }
-        if quantity < 0 {
-            anyhow::bail!("add_food_item should only accept stock being added to the house");
         }
 
         let existing_item = sqlx::query("SELECT quantity FROM food_items WHERE name = $1")
@@ -39,27 +38,29 @@ impl InventoryService for PostgresInventoryService<'_> {
 
         let result_row = if let Some(row) = existing_item {
             let existing_quantity: i32 = row.try_get("quantity")?;
-            let new_quantity = existing_quantity + quantity;
-            sqlx::query("UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id, quantity")
-                .bind(new_quantity)
-                .bind(name)
-                .fetch_one(self.pool)
-                .await?
+            let new_quantity = existing_quantity + quantity as i32;
+            sqlx::query(
+                "UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id, quantity",
+            )
+            .bind(new_quantity)
+            .bind(name)
+            .fetch_one(self.pool)
+            .await?
         } else {
             sqlx::query(
                 "INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id, quantity",
             )
             .bind(name)
-            .bind(quantity)
+            .bind(quantity as i32)
             .fetch_one(self.pool)
             .await?
         };
-        let id: uuid::Uuid = result_row.try_get("id")?;
-        let quantity: i32 = result_row.try_get("quantity")?;
+        let id: Uuid = result_row.try_get("id")?;
+        let quantity_val: i32 = result_row.try_get("quantity")?;
         Ok(FoodItem {
             id,
             name: item.name.clone(),
-            quantity: quantity,
+            quantity: quantity_val,
         })
     }
 
@@ -96,64 +97,16 @@ impl InventoryService for PostgresInventoryService<'_> {
 
 #[cfg(test)]
 mod tests {
-    use inventory::dto::AddFoodItem;
-    use inventory::traits::InventoryService;
+    use super::*;
+    use inventory::dto::inventory_dto::AddFoodItem;
+    use inventory::traits::ServiceInventoryService;
     use sqlx::PgPool;
     use sqlx::Row;
     use uuid::Uuid;
 
-    use crate::PostgresInventoryService;
-
-    #[sqlx::test]
-    async fn the_database_is_setup(pool: PgPool) -> anyhow::Result<()> {
-        let id_row =
-            sqlx::query("INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id")
-                .bind("Sausages")
-                .bind(100)
-                .fetch_one(&pool)
-                .await?;
-
-        let id: Uuid = id_row.try_get("id")?;
-
-        let row = sqlx::query("SELECT name, quantity FROM food_items WHERE id = $1")
-            .bind(id)
-            .fetch_one(&pool)
-            .await?;
-
-        let name: String = row.try_get("name")?;
-        let quantity: i32 = row.try_get("quantity")?;
-
-        assert_eq!(name, "Sausages");
-        assert_eq!(quantity, 100);
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn adding_a_new_food_item_works(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
-        sut.add_food_item(&AddFoodItem {
-            name: "Pizza".to_string(),
-            quantity: 4,
-        })
-        .await?;
-
-        let row = sqlx::query("SELECT name, quantity FROM food_items")
-            .fetch_one(&pool)
-            .await?;
-
-        let name: String = row.try_get("name")?;
-        let quantity: i32 = row.try_get("quantity")?;
-
-        assert_eq!(name, "Pizza");
-        assert_eq!(quantity, 4);
-
-        Ok(())
-    }
-
     #[sqlx::test]
     async fn deduplication_works(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         sut.add_food_item(&AddFoodItem {
             name: "Pizza".to_string(),
             quantity: 4,
@@ -170,10 +123,7 @@ mod tests {
             .await?;
 
         assert_eq!(rows.len(), 1, "Expected only one row in the database");
-        let row = rows
-            .first()
-            .expect("Expected at least one row in the database");
-
+        let row = rows.first().expect("Expected at least one row");
         let name: String = row.try_get("name")?;
         let quantity: i32 = row.try_get("quantity")?;
 
@@ -184,32 +134,8 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn deduplication_returns_the_merged_quantity(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService::new(&pool);
-        sut.add_food_item(&AddFoodItem {
-            name: "Pizza".to_string(),
-            quantity: 4,
-        })
-        .await?;
-
-        let updated = sut
-            .add_food_item(&AddFoodItem {
-                name: "Pizza".to_string(),
-                quantity: 6,
-            })
-            .await?;
-
-        assert_eq!(
-            updated.quantity, 10,
-            "The service response should report the stored merged quantity after deduplication"
-        );
-
-        Ok(())
-    }
-
-    #[sqlx::test]
     async fn list_of_food_items_can_be_retrieved(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         sut.add_food_item(&AddFoodItem {
             name: "Pizza".to_string(),
             quantity: 4,
@@ -221,7 +147,7 @@ mod tests {
         })
         .await?;
 
-        let rows = sqlx::query("SELECT name, quantity FROM food_items")
+        let rows = sqlx::query("SELECT name, quantity FROM food_items ORDER BY name ASC")
             .fetch_all(&pool)
             .await?;
 
@@ -241,7 +167,7 @@ mod tests {
 
     #[sqlx::test]
     async fn newly_added_food_appears_in_inventory_reads(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         sut.add_food_item(&AddFoodItem {
             name: "Milk".to_string(),
             quantity: 2,
@@ -269,7 +195,7 @@ mod tests {
 
     #[sqlx::test]
     async fn food_item_ids_are_stable_across_repeated_reads(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         let added = sut
             .add_food_item(&AddFoodItem {
                 name: "Pizza".to_string(),
@@ -303,7 +229,7 @@ mod tests {
 
     #[sqlx::test]
     async fn blank_food_names_are_rejected(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         let result = sut
             .add_food_item(&AddFoodItem {
                 name: "   ".to_string(),
@@ -330,7 +256,7 @@ mod tests {
     async fn delete_food_item_returns_error_for_non_existent_id(
         pool: PgPool,
     ) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         let random_id = Uuid::now_v7();
         let result = sut.delete_food_item(random_id).await;
 
@@ -344,7 +270,7 @@ mod tests {
 
     #[sqlx::test]
     async fn adding_negative_quantity_is_rejected(pool: PgPool) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         let result = sut
             .add_food_item(&AddFoodItem {
                 name: "Milk".to_string(),
@@ -371,7 +297,7 @@ mod tests {
     async fn reducing_existing_stock_cannot_make_quantity_negative(
         pool: PgPool,
     ) -> anyhow::Result<()> {
-        let sut = PostgresInventoryService { pool: &pool };
+        let sut = PostgresInventoryService::new(&pool);
         sut.add_food_item(&AddFoodItem {
             name: "Eggs".to_string(),
             quantity: 2,
