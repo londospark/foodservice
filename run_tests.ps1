@@ -11,9 +11,9 @@ docker-compose up -d
 # Wait for services to be ready
 Start-Sleep -Seconds 30
 
-# Run tests with coverage
+# Run tests with coverage and redirect output to a log file
 echo "Running tests with coverage..."
-cargo llvm-cov --workspace --ignore-filename-regex '.*\.d' --lcov --output-path lcov.info
+cargo llvm-cov --workspace --ignore-filename-regex '.*\.d' --lcov --output-path lcov.info *> run_tests.log
 
 # Check if the lcov.info file was generated successfully
 if (Test-Path ".\lcov.info") {
