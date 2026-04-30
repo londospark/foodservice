@@ -11,7 +11,7 @@ use inventory::{
     protocol::{
         INVENTORY_V1_BINCODE_MEDIA_TYPE, decode_add_food_item, encode_food_item, encode_food_items,
     },
-    traits::GatewayInventoryService,
+    traits::{GatewayInventoryService, ServiceInventoryService}, // Add the missing import
 };
 use inventory_svc::PostgresInventoryService;
 use std::sync::Arc;
@@ -59,7 +59,7 @@ async fn delete_food(
 ) -> impl IntoResponse {
     let inventory = &state.inventory_service;
     let response = inventory
-        .delete_food_item(id)
+        .delete_food_item(&id) // Fix the method call
         .await
         .expect("inventory service should not fail in this example");
 
@@ -158,7 +158,7 @@ impl GatewayInventoryService for RuntimePostgresInventoryService {
 
     async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
         let result = PostgresInventoryService::new(&self.pool)
-            .delete_food_item(id)
+            .delete_food_item(&id) // Fix the method call
             .await?;
         Ok(FoodItem::from(&result))
     }
