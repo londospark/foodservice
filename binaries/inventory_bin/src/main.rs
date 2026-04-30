@@ -7,11 +7,11 @@ use axum::{
     routing::{delete, get, post},
 };
 use inventory::{
-    dto::{AddFoodItem, FoodItem},
+    dto::gateway_dto::{AddFoodItem, FoodItem},
     protocol::{
         INVENTORY_V1_BINCODE_MEDIA_TYPE, decode_add_food_item, encode_food_item, encode_food_items,
     },
-    traits::InventoryService,
+    traits::GatewayInventoryService,
 };
 use inventory_svc::PostgresInventoryService;
 use std::sync::Arc;
@@ -21,10 +21,10 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../crates/inventor
 
 #[derive(Clone)]
 struct AppState {
-    inventory_service: Arc<dyn InventoryService>,
+    inventory_service: Arc<dyn GatewayInventoryService>,
 }
 
-fn app(inventory_service: Arc<dyn InventoryService>) -> Router {
+fn app(inventory_service: Arc<dyn GatewayInventoryService>) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/health", get(health))
@@ -140,23 +140,27 @@ impl RuntimePostgresInventoryService {
 }
 
 #[async_trait::async_trait]
-impl InventoryService for RuntimePostgresInventoryService {
+impl GatewayInventoryService for RuntimePostgresInventoryService {
     async fn add_food_item(&self, item: &AddFoodItem) -> anyhow::Result<FoodItem> {
-        PostgresInventoryService::new(&self.pool)
-            .add_food_item(item)
-            .await
+        let service_item = inventory::dto::InventoryAddFoodItem::from(item);
+        let result = PostgresInventoryService::new(&self.pool)
+            .add_food_item(&service_item)
+            .await?;
+        Ok(FoodItem::from(&result))
     }
 
     async fn list_food_items(&self) -> anyhow::Result<Vec<FoodItem>> {
-        PostgresInventoryService::new(&self.pool)
+        let results = PostgresInventoryService::new(&self.pool)
             .list_food_items()
-            .await
+            .await?;
+        Ok(results.into_iter().map(FoodItem::from).collect())
     }
 
     async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
-        PostgresInventoryService::new(&self.pool)
+        let result = PostgresInventoryService::new(&self.pool)
             .delete_food_item(id)
-            .await
+            .await?;
+        Ok(FoodItem::from(&result))
     }
 }
 
@@ -168,12 +172,12 @@ mod tests {
         http::{Request, StatusCode, header::CONTENT_TYPE},
     };
     use inventory::{
-        dto::{AddFoodItem, FoodItem},
+        dto::gateway_dto::{AddFoodItem, FoodItem},
         protocol::{
             INVENTORY_V1_BINCODE_MEDIA_TYPE, decode_food_item, decode_food_items,
             encode_add_food_item,
         },
-        traits::InventoryService,
+        traits::GatewayInventoryService,
     };
     use inventory_svc::PostgresInventoryService;
     use sqlx::{PgPool, Row};
@@ -599,7 +603,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl InventoryService for RecordingInventoryService {
+    impl GatewayInventoryService for RecordingInventoryService {
         async fn add_food_item(&self, item: &AddFoodItem) -> anyhow::Result<FoodItem> {
             self.recorded_calls.lock().unwrap().push(item.clone());
             Ok(self.response.clone())
@@ -617,23 +621,27 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl InventoryService for PostgresInventoryHarness {
+    impl GatewayInventoryService for PostgresInventoryHarness {
         async fn add_food_item(&self, item: &AddFoodItem) -> anyhow::Result<FoodItem> {
-            PostgresInventoryService::new(&self.pool)
-                .add_food_item(item)
-                .await
+            let service_item = inventory::dto::InventoryAddFoodItem::from(item);
+            let result = PostgresInventoryService::new(&self.pool)
+                .add_food_item(&service_item)
+                .await?;
+            Ok(FoodItem::from(&result))
         }
 
         async fn list_food_items(&self) -> anyhow::Result<Vec<FoodItem>> {
-            PostgresInventoryService::new(&self.pool)
+            let results = PostgresInventoryService::new(&self.pool)
                 .list_food_items()
-                .await
+                .await?;
+            Ok(results.into_iter().map(FoodItem::from).collect())
         }
 
         async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
-            PostgresInventoryService::new(&self.pool)
+            let result = PostgresInventoryService::new(&self.pool)
                 .delete_food_item(id)
-                .await
+                .await?;
+            Ok(FoodItem::from(&result))
         }
     }
 }
