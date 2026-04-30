@@ -1,4 +1,4 @@
-use crate::dto::{AddFoodItem, FoodItem};
+use crate::dto::gateway_dto::{AddFoodItem, FoodItem};
 
 pub const INVENTORY_V1_BINCODE_MEDIA_TYPE: &str =
     "application/vnd.foodservice.inventory.v1+bincode";
@@ -29,7 +29,7 @@ pub fn decode_food_items(bytes: &[u8]) -> anyhow::Result<Vec<FoodItem>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::dto::{AddFoodItem, FoodItem};
+    use crate::dto::gateway_dto::{AddFoodItem, FoodItem};
     use crate::protocol::{
         decode_add_food_item, decode_food_item, decode_food_items, encode_add_food_item,
         encode_food_item, encode_food_items,
