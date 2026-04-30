@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-trait = { workspace = true }
 anyhow = { workspace = true, default-features = true }
 assert_cmd = "2.2.1"
 clap = { features = ["derive"] , workspace = true, default-features = true }

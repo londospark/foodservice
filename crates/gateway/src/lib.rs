@@ -1,17 +1,17 @@
 use anyhow::Result;
 use async_graphql::{Object, SimpleObject};
 use inventory::{
-    dto::{AddFoodItem, FoodItem as InventoryFoodItem},
-    traits::InventoryService,
+    dto::gateway_dto::{AddFoodItem, FoodItem as InventoryFoodItem},
+    traits::GatewayInventoryService,
 };
 use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct Query {
-    inventory_service: Arc<dyn InventoryService>,
+    inventory_service: Arc<dyn GatewayInventoryService>,
 }
 pub struct Mutation {
-    inventory_service: Arc<dyn InventoryService>,
+    inventory_service: Arc<dyn GatewayInventoryService>,
 }
 
 #[derive(SimpleObject)]
@@ -22,7 +22,7 @@ pub struct FoodItem {
 }
 
 impl Query {
-    pub fn new(inventory_service: Arc<dyn InventoryService>) -> Self {
+    pub fn new(inventory_service: Arc<dyn GatewayInventoryService>) -> Self {
         Self { inventory_service }
     }
 }
@@ -50,7 +50,7 @@ impl Query {
 }
 
 impl Mutation {
-    pub fn new(inventory_service: Arc<dyn InventoryService>) -> Self {
+    pub fn new(inventory_service: Arc<dyn GatewayInventoryService>) -> Self {
         Self { inventory_service }
     }
 }
@@ -64,7 +64,7 @@ impl Default for Mutation {
 struct PlaceholderInventoryService;
 
 #[async_trait::async_trait]
-impl InventoryService for PlaceholderInventoryService {
+impl GatewayInventoryService for PlaceholderInventoryService {
     async fn add_food_item(&self, item: &AddFoodItem) -> anyhow::Result<InventoryFoodItem> {
         Ok(InventoryFoodItem {
             id: Uuid::now_v7(),
@@ -109,7 +109,7 @@ impl From<InventoryFoodItem> for FoodItem {
 
 #[Object]
 impl Mutation {
-    async fn add_food(&self, name: String, qty: usize) -> Result<FoodItem> {
+    async fn add_food(&self, name: String, qty: i32) -> Result<FoodItem> {
         if qty <= 0 {
             Err(anyhow::anyhow!("Quantity must be a positive integer"))
         } else if name.trim().is_empty() {
@@ -119,7 +119,7 @@ impl Mutation {
             inventory
                 .add_food_item(&AddFoodItem {
                     name: name.clone(),
-                    quantity: qty as i32,
+                    quantity: qty as u32,
                 })
                 .await
                 .map(FoodItem::from)
@@ -137,8 +137,8 @@ mod tests {
     use crate::{Mutation, Query};
     use async_graphql::{EmptyMutation, EmptySubscription, Schema};
     use inventory::{
-        dto::{AddFoodItem, FoodItem as InventoryFoodItem},
-        traits::InventoryService,
+        dto::gateway_dto::{AddFoodItem, FoodItem as InventoryFoodItem},
+        traits::GatewayInventoryService,
     };
     use std::sync::{Arc, Mutex};
     use uuid::Uuid;
@@ -224,7 +224,6 @@ mod tests {
 
     #[tokio::test]
     async fn deleting_food_item_returns_ok() {
-        // Implement a test for deleting a food item, assuming you have a delete_food mutation in your Mutation struct.
         let schema = Schema::new(Query::default(), Mutation::default(), EmptySubscription);
         let res = schema
             .execute(
@@ -262,7 +261,6 @@ mod tests {
             "#,
             )
             .await;
-
         assert!(
             !res.errors.is_empty(),
             "GraphQL clients should not be able to create anonymous food items"
@@ -385,7 +383,7 @@ mod tests {
             InventoryFoodItem {
                 id: Uuid::parse_str("00000000-0000-0000-0000-000000000051").unwrap(),
                 name: "Milk".to_string(),
-                quantity: 2,
+                quantity: 12,
             },
             InventoryFoodItem {
                 id: Uuid::parse_str("00000000-0000-0000-0000-000000000052").unwrap(),
@@ -410,7 +408,7 @@ mod tests {
 
         assert_eq!(
             res.data.to_string(),
-            "{listFood: [{name: \"Milk\", qty: 2}, {name: \"Eggs\", qty: 12}]}",
+            "{listFood: [{name: \"Milk\", qty: 12}, {name: \"Eggs\", qty: 12}]}",
             "Gateway reads should surface the inventory service results instead of a hardcoded list"
         );
     }
@@ -430,7 +428,6 @@ mod tests {
             Mutation::new(service.clone()),
             EmptySubscription,
         );
-
         let res = schema
             .execute(format!(
                 r#"
@@ -444,7 +441,6 @@ mod tests {
             "#
             ))
             .await;
-
         assert!(res.errors.is_empty());
         assert_eq!(
             service.recorded_delete_calls(),
@@ -468,7 +464,6 @@ mod tests {
             Mutation::new(service),
             EmptySubscription,
         );
-
         let res = schema
             .execute(format!(
                 r#"
@@ -482,7 +477,6 @@ mod tests {
             "#
             ))
             .await;
-
         assert_eq!(
             res.data.to_string(),
             format!("{{deleteFood: {{id: \"{deleted_id}\", name: \"Deleted Milk\", qty: 1}}}}"),
@@ -495,7 +489,7 @@ mod tests {
         list_response: Vec<InventoryFoodItem>,
         delete_response: InventoryFoodItem,
         recorded_calls: Mutex<Vec<AddFoodItem>>,
-        recorded_list_calls: Mutex<usize>,
+        recorded_list_counts: Mutex<usize>,
         recorded_delete_calls: Mutex<Vec<Uuid>>,
     }
 
@@ -506,7 +500,7 @@ mod tests {
                 list_response: Vec::new(),
                 delete_response: response,
                 recorded_calls: Mutex::new(Vec::new()),
-                recorded_list_calls: Mutex::new(0),
+                recorded_list_counts: Mutex::new(0),
                 recorded_delete_calls: Mutex::new(Vec::new()),
             }
         }
@@ -522,7 +516,7 @@ mod tests {
                 list_response: response,
                 delete_response: fallback,
                 recorded_calls: Mutex::new(Vec::new()),
-                recorded_list_calls: Mutex::new(0),
+                recorded_list_counts: Mutex::new(0),
                 recorded_delete_calls: Mutex::new(Vec::new()),
             }
         }
@@ -533,7 +527,7 @@ mod tests {
                 list_response: Vec::new(),
                 delete_response: response,
                 recorded_calls: Mutex::new(Vec::new()),
-                recorded_list_calls: Mutex::new(0),
+                recorded_list_counts: Mutex::new(0),
                 recorded_delete_calls: Mutex::new(Vec::new()),
             }
         }
@@ -543,7 +537,7 @@ mod tests {
         }
 
         fn recorded_list_calls(&self) -> usize {
-            *self.recorded_list_calls.lock().unwrap()
+            *self.recorded_list_counts.lock().unwrap()
         }
 
         fn recorded_delete_calls(&self) -> Vec<Uuid> {
@@ -552,14 +546,14 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl InventoryService for RecordingInventoryService {
+    impl GatewayInventoryService for RecordingInventoryService {
         async fn add_food_item(&self, item: &AddFoodItem) -> anyhow::Result<InventoryFoodItem> {
             self.recorded_calls.lock().unwrap().push(item.clone());
             Ok(self.add_response.clone())
         }
 
         async fn list_food_items(&self) -> anyhow::Result<Vec<InventoryFoodItem>> {
-            *self.recorded_list_calls.lock().unwrap() += 1;
+            *self.recorded_list_counts.lock().unwrap() += 1;
             Ok(self.list_response.clone())
         }
 

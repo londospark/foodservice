@@ -72,7 +72,7 @@ mod tests {
         routing::post,
     };
     use inventory::{
-        dto::{AddFoodItem, FoodItem},
+        dto::gateway_dto::{AddFoodItem, FoodItem},
         protocol::{
             INVENTORY_V1_BINCODE_MEDIA_TYPE, decode_add_food_item, encode_food_item,
             encode_food_items,

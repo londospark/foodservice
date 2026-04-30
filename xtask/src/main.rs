@@ -1,77 +1,191 @@
 use clap::{Parser, Subcommand};
+use std::process::Command;
 
 #[derive(Parser)]
 #[command(
     name = "xtask",
     about = "A tool to manage the foodservice microservices infrastructure."
 )]
-struct Cli {
+pub struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    pub command: Commands,
 }
 
-#[derive(Subcommand)]
-enum Commands {
+#[derive(Subcommand, Debug, PartialEq)]
+pub enum Commands {
     /// Install project dependencies
-    ///     
-    ///     This command will install all the necessary dependencies for the project using Cargo.
     Deps,
-    ///
     /// Setup docker compose
-    ///     
-    ///     This command will set up the Docker Compose environment for the project, allowing you to easily manage and run the various services that make up the foodservice microservices infrastructure.
     ComposeUp,
-    ///Run tests
-    ///     
-    ///     This command will run all the tests for the project, ensuring that everything is working as expected.
+    /// Run tests
     Test,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandResult {
+    Success,
+    Failure(i32),
+    Error(String),
+}
+
+pub trait CommandRunner {
+    fn run(&self, program: &str, args: &[&str]) -> CommandResult;
+}
+
+pub struct RealCommandRunner;
+
+impl CommandRunner for RealCommandRunner {
+    fn run(&self, program: &str, args: &[&str]) -> CommandResult {
+        match Command::new(program).args(args).status() {
+            Ok(status) => {
+                if status.success() {
+                    CommandResult::Success
+                } else {
+                    CommandResult::Failure(status.code().unwrap_or(1))
+                }
+            }
+            Err(e) => CommandResult::Error(e.to_string()),
+        }
+    }
+}
+
+pub fn run_app<R: CommandRunner>(cli: Cli, runner: R) -> CommandResult {
+    match cli.command {
+        Commands::Deps => {
+            println!("Installing project dependencies...");
+            runner.run("cargo", &["install", "sqlx-cli"])
+        }
+        Commands::Test => {
+            println!("Running tests...");
+            runner.run(
+                "cargo",
+                &["test", "--no-fail-fast", "--color", "always", "--workspace"],
+            )
+        }
+        Commands::ComposeUp => {
+            println!("Setting up Docker Compose environment...");
+            runner.run("docker-compose", &["up", "-d"])
+        }
+    }
 }
 
 fn main() {
     let cli = Cli::parse();
+    let runner = RealCommandRunner;
+    let result = run_app(cli, runner);
 
-    match cli.command {
-        Commands::Deps => {
-            println!("Installing project dependencies...");
-            let status = std::process::Command::new("cargo")
-                .arg("install")
-                .arg("sqlx-cli")
-                .status()
-                .expect("Failed to install sqlx-cli");
-
-            if !status.success() {
-                eprintln!("Failed to install dependencies. Please check the error messages above.");
-                std::process::exit(1);
-            }
-            println!("Dependencies installed successfully!");
+    match result {
+        CommandResult::Success => std::process::exit(0),
+        CommandResult::Failure(code) => {
+            eprintln!("Command failed with exit code: {}", code);
+            std::process::exit(code);
         }
-        Commands::Test => {
-            println!("Running tests...");
-            let status = std::process::Command::new("cargo")
-                .args(["test", "--no-fail-fast", "--color", "always", "--workspace"])
-                .status()
-                .expect("Failed to run tests");
-
-            if !status.success() {
-                eprintln!("Tests failed. Please check the error messages above.");
-                std::process::exit(1);
-            }
-            println!("All tests passed successfully!");
+        CommandResult::Error(e) => {
+            eprintln!("Failed to execute command: {}", e);
+            std::process::exit(1);
         }
-        Commands::ComposeUp => {
-            println!("Setting up Docker Compose environment...");
-            let status = std::process::Command::new("docker-compose")
-                .args(["up", "-d"])
-                .status()
-                .expect("Failed to set up Docker Compose environment");
+    }
+}
 
-            if !status.success() {
-                eprintln!(
-                    "Failed to set up Docker Compose environment. Please check the error messages above."
-                );
-                std::process::exit(1);
-            }
-            println!("Docker Compose environment set up successfully!");
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct CallInfo {
+        program: String,
+        args: Vec<String>,
+    }
+
+    struct MockCommandRunner {
+        pub result: CommandResult,
+        pub calls: Arc<Mutex<Vec<CallInfo>>>,
+    }
+
+    impl CommandRunner for MockCommandRunner {
+        fn run(&self, program: &str, args: &[&str]) -> CommandResult {
+            let mut calls = self.calls.lock().unwrap();
+            calls.push(CallInfo {
+                program: program.to_string(),
+                args: args.iter().map(|s| s.to_string()).collect(),
+            });
+            self.result.clone()
         }
+    }
+
+    #[test]
+    fn test_run_app_deps_success() {
+        let cli = Cli {
+            command: Commands::Deps,
+        };
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let runner = MockCommandRunner {
+            result: CommandResult::Success,
+            calls: calls.clone(),
+        };
+        let result = run_app(cli, runner);
+        assert_eq!(result, CommandResult::Success);
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].program, "cargo");
+        assert_eq!(calls[0].args, vec!["install", "sqlx-cli"]);
+    }
+
+    #[test]
+    fn test_run_app_deps_failure() {
+        let cli = Cli {
+            command: Commands::Deps,
+        };
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let runner = MockCommandRunner {
+            result: CommandResult::Failure(42),
+            calls: calls.clone(),
+        };
+        let result = run_app(cli, runner);
+        assert_eq!(result, CommandResult::Failure(42));
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].program, "cargo");
+        assert_eq!(calls[0].args, vec!["install", "sqlx-cli"]);
+    }
+
+    #[test]
+    fn test_run_app_test_success() {
+        let cli = Cli {
+            command: Commands::Test,
+        };
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let runner = MockCommandRunner {
+            result: CommandResult::Success,
+            calls: calls.clone(),
+        };
+        let result = run_app(cli, runner);
+        assert_eq!(result, CommandResult::Success);
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].program, "cargo");
+        assert_eq!(
+            calls[0].args,
+            vec!["test", "--no-fail-fast", "--color", "always", "--workspace"]
+        );
+    }
+
+    #[test]
+    fn test_run_app_compose_up_success() {
+        let cli = Cli {
+            command: Commands::ComposeUp,
+        };
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let runner = MockCommandRunner {
+            result: CommandResult::Success,
+            calls: calls.clone(),
+        };
+        let result = run_app(cli, runner);
+        assert_eq!(result, CommandResult::Success);
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].program, "docker-compose");
+        assert_eq!(calls[0].args, vec!["up", "-d"]);
     }
 }

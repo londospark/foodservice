@@ -1,9 +1,6 @@
-use crate::{
-    dto::{AddFoodItem, FoodItem},
-    protocol::decode_food_item,
-    traits::InventoryService,
-};
-use uuid::Uuid;
+use crate::dto::gateway_dto::{AddFoodItem as GatewayAddFoodItem, FoodItem as GatewayFoodItem};
+use crate::protocol::decode_food_item;
+use crate::traits::GatewayInventoryService;
 
 pub struct InventoryClient {
     pub client: reqwest::Client,
@@ -29,8 +26,8 @@ impl InventoryClient {
 }
 
 #[async_trait::async_trait]
-impl InventoryService for InventoryClient {
-    async fn add_food_item(&self, item: &AddFoodItem) -> anyhow::Result<FoodItem> {
+impl GatewayInventoryService for InventoryClient {
+    async fn add_food_item(&self, item: &GatewayAddFoodItem) -> anyhow::Result<GatewayFoodItem> {
         let result = self
             .client
             .post(format!("{}/food", self.base_url))
@@ -52,7 +49,7 @@ impl InventoryService for InventoryClient {
         decode_food_item(response.as_ref())
     }
 
-    async fn list_food_items(&self) -> anyhow::Result<Vec<FoodItem>> {
+    async fn list_food_items(&self) -> anyhow::Result<Vec<GatewayFoodItem>> {
         let result = self
             .client
             .get(format!("{}/food", self.base_url))
@@ -69,7 +66,7 @@ impl InventoryService for InventoryClient {
         crate::protocol::decode_food_items(response.as_ref())
     }
 
-    async fn delete_food_item(&self, id: Uuid) -> anyhow::Result<FoodItem> {
+    async fn delete_food_item(&self, id: uuid::Uuid) -> anyhow::Result<GatewayFoodItem> {
         let result = self
             .client
             .delete(format!("{}/food/{}", self.base_url, id))
@@ -91,9 +88,9 @@ impl InventoryService for InventoryClient {
 mod tests {
     use super::InventoryClient;
     use crate::{
-        dto::{AddFoodItem, FoodItem},
+        dto::gateway_dto::{AddFoodItem as GatewayAddFoodItem, FoodItem as GatewayFoodItem},
         protocol::{INVENTORY_V1_BINCODE_MEDIA_TYPE, decode_add_food_item, encode_food_item},
-        traits::InventoryService,
+        traits::GatewayInventoryService,
     };
     use axum::{
         Router,
@@ -110,7 +107,7 @@ mod tests {
     #[tokio::test]
     async fn add_food_item_posts_bincode_to_the_inventory_service_and_decodes_the_response() {
         let state = Arc::new(ObservedRequest::default());
-        let returned_item = FoodItem {
+        let returned_item = GatewayFoodItem {
             id: Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
             name: "Milk".to_string(),
             quantity: 2,
@@ -119,7 +116,7 @@ mod tests {
         let client = InventoryClient::new(base_url);
 
         let result = client
-            .add_food_item(&AddFoodItem {
+            .add_food_item(&GatewayAddFoodItem {
                 name: "Milk".to_string(),
                 quantity: 2,
             })
@@ -137,7 +134,7 @@ mod tests {
         );
         assert_eq!(
             state.command().await,
-            Some(AddFoodItem {
+            Some(GatewayAddFoodItem {
                 name: "Milk".to_string(),
                 quantity: 2,
             }),
@@ -151,7 +148,7 @@ mod tests {
         let client = InventoryClient::new(base_url);
 
         let result = client
-            .add_food_item(&AddFoodItem {
+            .add_food_item(&GatewayAddFoodItem {
                 name: "Milk".to_string(),
                 quantity: 2,
             })
@@ -165,7 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_food_item_rejects_success_responses_with_the_wrong_media_type() {
-        let returned_item = FoodItem {
+        let returned_item = GatewayFoodItem {
             id: Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap(),
             name: "Milk".to_string(),
             quantity: 2,
@@ -174,7 +171,7 @@ mod tests {
         let client = InventoryClient::new(base_url);
 
         let result = client
-            .add_food_item(&AddFoodItem {
+            .add_food_item(&GatewayAddFoodItem {
                 name: "Milk".to_string(),
                 quantity: 2,
             })
@@ -188,17 +185,17 @@ mod tests {
 
     #[derive(Default)]
     struct ObservedRequest {
-        command: Mutex<Option<AddFoodItem>>,
+        command: Mutex<Option<GatewayAddFoodItem>>,
         content_type: Mutex<Option<String>>,
     }
 
     impl ObservedRequest {
-        async fn record(&self, content_type: Option<String>, command: AddFoodItem) {
+        async fn record(&self, content_type: Option<String>, command: GatewayAddFoodItem) {
             *self.content_type.lock().await = content_type;
             *self.command.lock().await = Some(command);
         }
 
-        async fn command(&self) -> Option<AddFoodItem> {
+        async fn command(&self) -> Option<GatewayAddFoodItem> {
             self.command.lock().await.clone()
         }
 
@@ -207,7 +204,7 @@ mod tests {
         }
     }
 
-    fn success_app(state: Arc<ObservedRequest>, response: FoodItem) -> Router {
+    fn success_app(state: Arc<ObservedRequest>, response: GatewayFoodItem) -> Router {
         Router::new()
             .route("/food", post(success_handler))
             .with_state(SuccessState {
@@ -222,7 +219,7 @@ mod tests {
             .with_state(ErrorState { status })
     }
 
-    fn wrong_media_type_app(response: FoodItem) -> Router {
+    fn wrong_media_type_app(response: GatewayFoodItem) -> Router {
         Router::new()
             .route("/food", post(wrong_media_type_handler))
             .with_state(WrongMediaTypeState { response })
@@ -231,7 +228,7 @@ mod tests {
     #[derive(Clone)]
     struct SuccessState {
         observed: Arc<ObservedRequest>,
-        response: FoodItem,
+        response: GatewayFoodItem,
     }
 
     #[derive(Clone)]
@@ -241,7 +238,7 @@ mod tests {
 
     #[derive(Clone)]
     struct WrongMediaTypeState {
-        response: FoodItem,
+        response: GatewayFoodItem,
     }
 
     async fn success_handler(
@@ -269,6 +266,8 @@ mod tests {
 
     async fn wrong_media_type_handler(
         State(state): State<WrongMediaTypeState>,
+        _headers: HeaderMap,
+        _body: Bytes,
     ) -> impl IntoResponse {
         (
             StatusCode::OK,
@@ -284,7 +283,6 @@ mod tests {
         let address = listener
             .local_addr()
             .expect("test server should report its local address");
-
         tokio::spawn(async move {
             axum::serve(listener, app)
                 .await
