@@ -8,7 +8,7 @@ impl From<&GatewayAddFoodItem> for InventoryAddFoodItem {
     fn from(item: &GatewayAddFoodItem) -> Self {
         Self {
             name: item.name.clone(),
-            quantity: item.quantity as i32,
+            quantity: item.quantity as i32, // Fix 4
         }
     }
 }
@@ -17,7 +17,7 @@ impl From<&InventoryAddFoodItem> for GatewayAddFoodItem {
     fn from(item: &InventoryAddFoodItem) -> Self {
         Self {
             name: item.name.clone(),
-            quantity: item.quantity as u32,
+            quantity: item.quantity as u32, // Fix 4
         }
     }
 }

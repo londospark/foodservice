@@ -20,7 +20,7 @@ impl<'a> PostgresInventoryService<'a> {
 impl ServiceInventoryService for PostgresInventoryService<'_> {
     async fn add_food_item(&self, item: &AddFoodItem) -> Result<FoodItem> {
         let name = &item.name;
-        let quantity = item.quantity;
+        let quantity = item.quantity as i32; // Fix 1
         if name.trim().is_empty() {
             anyhow::bail!("Food item name cannot be blank");
         }
@@ -38,7 +38,7 @@ impl ServiceInventoryService for PostgresInventoryService<'_> {
 
         let result_row = if let Some(row) = existing_item {
             let existing_quantity: i32 = row.try_get("quantity")?;
-            let new_quantity = existing_quantity + quantity as i32;
+            let new_quantity = existing_quantity + quantity;
             sqlx::query(
                 "UPDATE food_items SET quantity = $1 WHERE name = $2 RETURNING id, quantity",
             )
@@ -51,7 +51,7 @@ impl ServiceInventoryService for PostgresInventoryService<'_> {
                 "INSERT INTO food_items (name, quantity) VALUES ($1, $2) RETURNING id, quantity",
             )
             .bind(name)
-            .bind(quantity as i32)
+            .bind(quantity)
             .fetch_one(self.pool)
             .await?
         };
@@ -81,7 +81,7 @@ impl ServiceInventoryService for PostgresInventoryService<'_> {
         Ok(items)
     }
 
-    async fn delete_food_item(&self, id: Uuid) -> Result<FoodItem> {
+    async fn delete_food_item(&self, id: Uuid) -> Result<FoodItem> { // Fix 2
         let row = sqlx::query("DELETE FROM food_items WHERE id = $1 RETURNING id, name, quantity")
             .bind(id)
             .fetch_one(self.pool)
